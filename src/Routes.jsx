@@ -8,6 +8,7 @@ import RoomSearch from "./pages/room-search";
 import RoomControlInterface from "./pages/room-control-interface";
 import NewBooking from "./pages/new-booking";
 import RoomDetails from "./pages/room-details";
+import MyBookings from "./pages/my-bookings";
 
 const Routes = () => {
   return (
@@ -24,6 +25,7 @@ const Routes = () => {
             element={<RoomControlInterface />}
           />
           <Route path="/new-booking" element={<NewBooking />} />
+          <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/room-details" element={<RoomDetails />} />
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>

@@ -140,7 +140,13 @@ const BookingSuccess = ({ bookingReference, bookingDetails }) => {
             variant="outline"
             iconName="Calendar"
             iconPosition="left"
-            onClick={() => navigate("/my-bookings")}
+            onClick={() =>
+              navigate("/my-bookings", {
+                state: {
+                  bookingDetails,
+                },
+              })
+            }
             className="flex-1"
           >
             View My Bookings

@@ -96,7 +96,7 @@ const BookingForm = ({
           today?.setHours(0, 0, 0, 0);
 
           if (selectedDate < today) {
-            newErrors.date = "Cannot book rooms in the past";
+            newErrors.date = "t";
           } else {
             const maxDate = new Date();
             maxDate?.setDate(maxDate?.getDate() + 30);
