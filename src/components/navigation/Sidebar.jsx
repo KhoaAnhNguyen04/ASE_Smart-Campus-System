@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Icon from "../AppIcon";
+import { useAuth } from "../../context/AuthContext";
 
 const SidebarContext = createContext({
   isCollapsed: false,
@@ -33,8 +34,16 @@ const Sidebar = ({ userRole = "student" }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isCollapsed, toggleCollapse } = useSidebar();
+  const { logout, user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("connected");
+
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to log out?")) {
+      logout();
+      navigate("/login");
+    }
+  };
 
   const navigationItems = [
     {
@@ -157,8 +166,19 @@ const Sidebar = ({ userRole = "student" }) => {
           )}
 
           <button
+            onClick={handleLogout}
+            className="sidebar-nav-item mt-4 w-full text-red-600 hover:bg-red-50"
+            aria-label="Log out"
+          >
+            <Icon name="LogOut" size={20} />
+            {!isCollapsed && (
+              <span className="sidebar-nav-item-text">Log out</span>
+            )}
+          </button>
+
+          <button
             onClick={toggleCollapse}
-            className="sidebar-nav-item mt-4 hidden lg:flex"
+            className="sidebar-nav-item mt-2 hidden lg:flex"
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <Icon
