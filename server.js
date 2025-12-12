@@ -49,25 +49,20 @@ const parsePagination = (req) => {
   return { page, limit, offset };
 };
 
-// Simple auth guard using Supabase JWT (access token from frontend)
-const requireAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization || "";
-    const token = authHeader.startsWith("Bearer ")
-      ? authHeader.slice("Bearer ".length)
-      : null;
-    if (!token) {
-      return res.status(401).json({ error: "Missing Bearer token" });
-    }
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-    req.user = data.user;
-    return next();
-  } catch (err) {
-    return handleError(res, err);
+const getBearerToken = (req) => {
+  const authHeader = req.headers?.authorization || "";
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() === "bearer" && token) return token;
+  return null;
+};
+
+const getUserFromRequest = async (req) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    return { user: null, error: new Error("Missing bearer token") };
   }
+  const { data, error } = await supabase.auth.getUser(token);
+  return { user: data?.user ?? null, error };
 };
 
 const fetchConflictingBookings = async (roomIds, startIso, endIso) => {
@@ -85,6 +80,94 @@ app.get("/health", async (_req, res) => {
   if (error) return handleError(res, error);
   res.json({ ok: true });
 });
+
+// Auth signup (service role)
+app.post("/auth/signup", async (req, res) => {
+  const { email, password, full_name, role = "student" } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password are required" });
+  }
+
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name, role },
+  });
+  if (error) return handleError(res, error);
+
+  const userId = data?.user?.id;
+  if (userId) {
+    const { error: profileError } = await supabase.from("users").upsert({
+      id: userId,
+      email,
+      full_name,
+      role,
+    });
+    if (profileError) return handleError(res, profileError);
+  }
+
+  res.status(201).json({
+    user: {
+      id: userId,
+      email,
+      role,
+      full_name,
+    },
+  });
+});
+
+// Current user profile (requires Bearer token from Supabase Auth)
+const handleGetMe = async (req, res) => {
+  const { user, error } = await getUserFromRequest(req);
+  if (error || !user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { data, error: profileError } = await supabase
+    .from("users")
+    .upsert(
+      { id: user.id, email: user.email, full_name: user.user_metadata?.full_name, role: user.user_metadata?.role || "student" },
+      { onConflict: "id" }
+    )
+    .select()
+    .single();
+
+  if (profileError) return handleError(res, profileError);
+  res.json(data);
+};
+
+const handlePatchMe = async (req, res) => {
+  const { user, error } = await getUserFromRequest(req);
+  if (error || !user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const updates = {};
+  if (req.body?.full_name !== undefined) updates.full_name = req.body.full_name;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
+  updates.updated_at = new Date().toISOString();
+
+  const { data, error: profileError } = await supabase
+    .from("users")
+    .update(updates)
+    .eq("id", user.id)
+    .select()
+    .single();
+
+  if (profileError) return handleError(res, profileError);
+  res.json(data);
+};
+
+app.get("/profiles/me", handleGetMe);
+app.patch("/profiles/me", handlePatchMe);
+app.get("/users/me", handleGetMe);
+app.patch("/users/me", handlePatchMe);
 
 // Building list with floor & room counts
 app.get("/buildings", async (_req, res) => {
@@ -381,7 +464,7 @@ app.delete("/rooms/:id", async (req, res) => {
 });
 
 // List bookings with optional filters
-app.get("/bookings", requireAuth, async (req, res) => {
+app.get("/bookings", async (req, res) => {
   const { room_id, user_email, status, upcoming } = req.query;
   const { limit, offset, page } = parsePagination(req);
   let query = supabase
@@ -401,7 +484,7 @@ app.get("/bookings", requireAuth, async (req, res) => {
 });
 
 // Check availability for a specific room/time window
-app.post("/availability-check", requireAuth, async (req, res) => {
+app.post("/availability-check", async (req, res) => {
   const { room_id, start_time, end_time } = req.body || {};
   const startIso = parseDateToIso(start_time);
   const endIso = parseDateToIso(end_time);
@@ -426,7 +509,7 @@ app.post("/availability-check", requireAuth, async (req, res) => {
 });
 
 // Create booking with overlap protection
-app.post("/bookings", requireAuth, async (req, res) => {
+app.post("/bookings", async (req, res) => {
   const {
     room_id,
     user_email,
@@ -458,14 +541,12 @@ app.post("/bookings", requireAuth, async (req, res) => {
       .json({ error: "Time slot overlaps existing booking", conflicts: conflictRes.data });
   }
 
-  const bookingUserEmail = user_email || req.user?.email;
-
   const { data, error } = await supabase
     .from("bookings")
     .insert([
       {
         room_id,
-        user_email: bookingUserEmail,
+        user_email,
         start_time: startIso,
         end_time: endIso,
         status,
@@ -480,7 +561,7 @@ app.post("/bookings", requireAuth, async (req, res) => {
 });
 
 // Update booking with overlap protection
-app.patch("/bookings/:id", requireAuth, async (req, res) => {
+app.patch("/bookings/:id", async (req, res) => {
   const bookingId = req.params.id;
   const {
     room_id,
@@ -556,7 +637,7 @@ app.patch("/bookings/:id", requireAuth, async (req, res) => {
 });
 
 // Delete booking
-app.delete("/bookings/:id", requireAuth, async (req, res) => {
+app.delete("/bookings/:id", async (req, res) => {
   const bookingId = req.params.id;
   const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
   if (error) return handleError(res, error);
@@ -564,7 +645,7 @@ app.delete("/bookings/:id", requireAuth, async (req, res) => {
 });
 
 // Activity logs (list + create) and room control updates
-app.get("/activity-logs", requireAuth, async (req, res) => {
+app.get("/activity-logs", async (req, res) => {
   const { room_id, limit = 50 } = req.query;
   const { offset, page } = parsePagination(req);
   let query = supabase
@@ -580,7 +661,7 @@ app.get("/activity-logs", requireAuth, async (req, res) => {
   res.json({ total: count ?? data?.length ?? 0, page, limit: parseNumber(limit) || 50, logs: data ?? [] });
 });
 
-app.post("/activity-logs", requireAuth, async (req, res) => {
+app.post("/activity-logs", async (req, res) => {
   const { room_id, action, by_user, details, success = true } = req.body || {};
   if (!room_id || !action || !by_user) {
     return res
@@ -597,7 +678,7 @@ app.post("/activity-logs", requireAuth, async (req, res) => {
 });
 
 // Update room operational state (door/device/occupancy/status)
-app.post("/rooms/:id/control", requireAuth, async (req, res) => {
+app.post("/rooms/:id/control", async (req, res) => {
   const roomId = req.params.id;
   const { door_status, device_status, occupancy_count, status, action, by_user } =
     req.body || {};

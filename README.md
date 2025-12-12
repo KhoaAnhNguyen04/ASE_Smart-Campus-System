@@ -1,44 +1,42 @@
 # ASE_Smart-Campus-System
 
 ## Backend (Express + Supabase)
-
-### Môi trường
-Tạo `.env` ở thư mục gốc:
+### Environment
+Create `.env` in project root:
 ```
-SUPABASE_URL=<project-url>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # chỉ dùng backend
+SUPABASE_URL=your-project-url
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # only backend
 PORT=4000
 ```
-Frontend dùng:
+Frontend uses anon/publishable key:
 ```
-VITE_SUPABASE_URL=<project-url>
-VITE_SUPABASE_ANON_KEY=<anon-or-publishable-key>
+VITE_SUPABASE_URL=your-project-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### Khởi chạy
+### Database seed
+- Open Supabase SQL Editor, run `seed.sql`. It creates tables (`rooms`, `room_equipment`, `room_images`, `bookings`, `room_activity_logs`, `users`), inserts sample data, and sets RLS policies.
+
+### Run backend
 ```
 npm install
 npm run api
 ```
-API mặc định: `http://localhost:4000`
+API at `http://localhost:4000`.
 
-### Seed database
-- Mở Supabase Dashboard → SQL Editor → dán toàn bộ `seed.sql` → Run.
-- Seed tạo bảng + dữ liệu mẫu + bật RLS + policy.
+### Key endpoints
+- Health: `GET /health`
+- Buildings: `GET /buildings`
+- Rooms: `GET /rooms` (filters + pagination), `GET /rooms/:id`, `POST /rooms`, `PATCH /rooms/:id`, `DELETE /rooms/:id`, `POST /rooms/:id/control`
+- Bookings: `GET /bookings` (filters + pagination), `POST /bookings`, `PATCH /bookings/:id`, `DELETE /bookings/:id`
+- Availability: `POST /availability-check`
+- Activity logs: `GET /activity-logs`, `POST /activity-logs`
+- Auth / Users:
+  - `POST /auth/signup` (service role) creates a Supabase user + user row
+  - `GET /users/me` (Bearer access token) returns current user row (alias: `/profiles/me`)
+  - `PATCH /users/me` (Bearer access token) updates user.full_name (alias: `/profiles/me`)
 
-### Auth
-- Các endpoint cần Bearer token (Supabase Auth access_token): `GET/POST/ PATCH/DELETE /bookings`, `POST /availability-check`, `GET/POST /activity-logs`, `POST /rooms/:id/control`.
-- Header: `Authorization: Bearer <access_token>`.
-- Backend dùng service role key; RLS: bookings chỉ authenticated/service_role, activity_logs chỉ service_role; rooms/equipment/images cho đọc công khai.
-
-### Endpoint chính
-- `GET /health` — kiểm tra DB.
-- `GET /buildings` — danh sách tòa nhà + tầng.
-- `GET /rooms` — lọc + phân trang (search, building, capacity, equipment, availability window).
-- `POST /rooms`, `PATCH /rooms/:id`, `DELETE /rooms/:id`.
-- `GET /rooms/:id` — chi tiết phòng + bookings + activity logs.
-- `GET /bookings` — lọc room_id/user_email/status/upcoming + phân trang (cần Bearer).
-- `POST /bookings` — tạo booking (chặn trùng); `PATCH /bookings/:id`; `DELETE /bookings/:id` (cần Bearer). Nếu không gửi `user_email`, server dùng email từ token.
-- `POST /availability-check` — kiểm tra sẵn sàng phòng/time window (cần Bearer).
-- `POST /rooms/:id/control` — cập nhật door/device/occupancy/status và ghi log (cần Bearer).
-- `GET|POST /activity-logs` — đọc/ghi log thao tác (cần Bearer, có phân trang).
+### RLS (summary)
+- `rooms`, `room_equipment`, `room_images`, `bookings`: anonymous can read; mutations require `service_role`.
+- `room_activity_logs`: only `service_role` read/insert.
+- `users`: users can read/update their own row; `service_role` full access. Access token required for `/users/me`.
