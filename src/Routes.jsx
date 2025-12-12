@@ -16,6 +16,7 @@ import RoomSearch from "./pages/room-search";
 import RoomControlInterface from "./pages/room-control-interface";
 import NewBooking from "./pages/new-booking";
 import RoomDetails from "./pages/room-details";
+import MyBookings from "./pages/my-bookings";
 
 const Routes = () => {
   return (
