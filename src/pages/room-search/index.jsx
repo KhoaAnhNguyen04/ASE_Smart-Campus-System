@@ -27,167 +27,37 @@ const RoomSearchContent = () => {
   const [sortBy, setSortBy] = useState("availability");
   const [viewMode, setViewMode] = useState("grid");
   const [isLoading, setIsLoading] = useState(true);
+  const [rooms, setRooms] = useState([]);
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
 
-  const mockRooms = [
-    {
-      id: "rm-001",
-      name: "Innovation Lab",
-      roomNumber: "301",
-      building: "Engineering Building",
-      floor: 3,
-      capacity: 25,
-      status: "free",
-      image:
-        "https://img.rocket.new/generatedImages/rocket_gen_img_1382af0a9-1764641718312.png",
-      imageAlt:
-        "Modern innovation lab with white walls, large windows, collaborative workstations, and advanced technology equipment",
-      equipment: [
-        { name: "Projector", icon: "Projector" },
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Computer", icon: "Monitor" },
-        { name: "Video Conference", icon: "Video" },
-        { name: "Smart Board", icon: "Tablet" },
-      ],
+    if (filters.searchQuery) params.append("search", filters.searchQuery);
+    if (filters.building !== "all") params.append("building", filters.building);
 
-      nextAvailable: null,
-    },
-    {
-      id: "rm-002",
-      name: "Conference Room A",
-      roomNumber: "205",
-      building: "Business School",
-      floor: 2,
-      capacity: 50,
-      status: "in-use",
-      image: "https://images.unsplash.com/photo-1733397255916-4c5e76cfdbf3",
-      imageAlt:
-        "Professional conference room with large wooden table, executive chairs, wall-mounted display screens, and modern lighting",
-      equipment: [
-        { name: "Projector", icon: "Projector" },
-        { name: "Audio System", icon: "Volume2" },
-        { name: "Video Conference", icon: "Video" },
-      ],
+    if (filters.capacity !== "any") {
+      if (filters.capacity.includes("+")) {
+        params.append("capacityMin", filters.capacity.replace("+", ""));
+      } else {
+        const [min, max] = filters.capacity.split("-");
+        params.append("capacityMin", min);
+        params.append("capacityMax", max);
+      }
+    }
 
-      nextAvailable: "02:30 PM",
-    },
-    {
-      id: "rm-003",
-      name: "Study Room 12",
-      roomNumber: "104",
-      building: "Main Library",
-      floor: 1,
-      capacity: 8,
-      status: "free",
-      image: "https://images.unsplash.com/photo-1618809198343-7478d6019985",
-      imageAlt:
-        "Cozy study room with wooden furniture, comfortable seating, bookshelves, natural lighting from large windows",
-      equipment: [
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Computer", icon: "Monitor" },
-      ],
+    if (filters.equipment.length > 0) {
+      params.append("equipment", filters.equipment.join(","));
+    }
 
-      nextAvailable: null,
-    },
-    {
-      id: "rm-004",
-      name: "Lecture Hall B",
-      roomNumber: "401",
-      building: "Science Complex",
-      floor: 4,
-      capacity: 120,
-      status: "reserved",
-      image: "https://images.unsplash.com/photo-1703538671811-67ef490ac63f",
-      imageAlt:
-        "Large lecture hall with tiered seating, multiple projection screens, podium, and modern audio-visual equipment",
-      equipment: [
-        { name: "Projector", icon: "Projector" },
-        { name: "Audio System", icon: "Volume2" },
-        { name: "Smart Board", icon: "Tablet" },
-        { name: "Video Conference", icon: "Video" },
-      ],
+    if (filters.onlyAvailable) {
+      params.append(
+        "availableStart",
+        `${filters.date}T${filters.startTime}:00`
+      );
+      params.append("availableEnd", `${filters.date}T${filters.endTime}:00`);
+    }
 
-      nextAvailable: "04:00 PM",
-    },
-    {
-      id: "rm-005",
-      name: "Creative Studio",
-      roomNumber: "202",
-      building: "Arts & Humanities",
-      floor: 2,
-      capacity: 15,
-      status: "free",
-      image:
-        "https://img.rocket.new/generatedImages/rocket_gen_img_1f1b065c6-1764633634351.png",
-      imageAlt:
-        "Bright creative studio space with movable furniture, art supplies, natural lighting, and collaborative work areas",
-      equipment: [
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Projector", icon: "Projector" },
-        { name: "Audio System", icon: "Volume2" },
-      ],
-
-      nextAvailable: null,
-    },
-    {
-      id: "rm-006",
-      name: "Research Lab 3",
-      roomNumber: "501",
-      building: "Medical Sciences",
-      floor: 5,
-      capacity: 20,
-      status: "in-use",
-      image:
-        "https://img.rocket.new/generatedImages/rocket_gen_img_111fe89ab-1764830399603.png",
-      imageAlt:
-        "Modern research laboratory with scientific equipment, workbenches, computers, and safety equipment visible",
-      equipment: [
-        { name: "Computer", icon: "Monitor" },
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Video Conference", icon: "Video" },
-      ],
-
-      nextAvailable: "01:00 PM",
-    },
-    {
-      id: "rm-007",
-      name: "Group Study 5",
-      roomNumber: "302",
-      building: "Main Library",
-      floor: 3,
-      capacity: 12,
-      status: "free",
-      image: "https://images.unsplash.com/photo-1715950227438-e0152b97b668",
-      imageAlt:
-        "Collaborative group study room with round table, comfortable chairs, whiteboard, and natural lighting",
-      equipment: [
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Computer", icon: "Monitor" },
-      ],
-
-      nextAvailable: null,
-    },
-    {
-      id: "rm-008",
-      name: "Seminar Room C",
-      roomNumber: "303",
-      building: "Business School",
-      floor: 3,
-      capacity: 30,
-      status: "reserved",
-      image:
-        "https://img.rocket.new/generatedImages/rocket_gen_img_104607b0f-1764718804838.png",
-      imageAlt:
-        "Professional seminar room with U-shaped table arrangement, presentation screen, and modern office furniture",
-      equipment: [
-        { name: "Projector", icon: "Projector" },
-        { name: "Whiteboard", icon: "PenTool" },
-        { name: "Audio System", icon: "Volume2" },
-        { name: "Video Conference", icon: "Video" },
-      ],
-
-      nextAvailable: "03:30 PM",
-    },
-  ];
+    return params.toString();
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -195,54 +65,6 @@ const RoomSearchContent = () => {
     }, 800);
     return () => clearTimeout(timer);
   }, []);
-
-  const filterRooms = (rooms) => {
-    return rooms?.filter((room) => {
-      if (filters?.searchQuery) {
-        const query = filters?.searchQuery?.toLowerCase();
-        if (
-          !room?.name?.toLowerCase()?.includes(query) &&
-          !room?.roomNumber?.toLowerCase()?.includes(query)
-        ) {
-          return false;
-        }
-      }
-
-      if (
-        filters?.building !== "all" &&
-        room?.building?.toLowerCase() !== filters?.building?.toLowerCase()
-      ) {
-        return false;
-      }
-
-      if (filters?.capacity !== "any") {
-        const [min, max] = filters?.capacity?.includes("+")
-          ? [parseInt(filters?.capacity), Infinity]
-          : filters?.capacity?.split("-")?.map((n) => parseInt(n));
-        if (room?.capacity < min || room?.capacity > max) {
-          return false;
-        }
-      }
-
-      if (filters?.onlyAvailable && room?.status !== "free") {
-        return false;
-      }
-
-      if (filters?.equipment?.length > 0) {
-        const roomEquipmentNames = room?.equipment?.map((e) =>
-          e?.name?.toLowerCase()
-        );
-        const hasAllEquipment = filters?.equipment?.every((eq) =>
-          roomEquipmentNames?.some((name) => name?.includes(eq?.toLowerCase()))
-        );
-        if (!hasAllEquipment) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  };
 
   const sortRooms = (rooms) => {
     const sorted = [...rooms];
@@ -283,8 +105,57 @@ const RoomSearchContent = () => {
       equipment: [],
     });
   };
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setIsLoading(true);
 
-  const filteredRooms = sortRooms(filterRooms(mockRooms));
+        const query = buildQueryParams();
+        const res = await fetch(`http://localhost:4000/rooms?${query}`);
+        const data = await res.json();
+
+        const normalizedRooms = (data.rooms || []).map((room) => ({
+          id: room.id,
+          name: room.name,
+          roomNumber: room.room_number,
+          building: room.building,
+          floor: room.floor,
+          capacity: room.capacity,
+          status: room.status,
+          image:
+            room.room_images?.[0]?.url ||
+            room.image_url ||
+            "/placeholder-room.jpg",
+          imageAlt: room.room_images?.[0]?.alt || room.name,
+          equipment: (room.room_equipment || []).map((e) => ({
+            name: e.name,
+            icon: e.icon,
+          })),
+          nextAvailable: room.availability?.nextAvailableAt
+            ? new Date(room.availability.nextAvailableAt).toLocaleTimeString(
+                [],
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              )
+            : null,
+        }));
+
+        setRooms(normalizedRooms);
+      } catch (err) {
+        console.error("Failed to load rooms", err);
+        setRooms([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, [filters]);
+
+  const sortedRooms = sortRooms(rooms);
+  const filteredRooms = sortedRooms;
 
   return (
     <div className="min-h-screen bg-background">

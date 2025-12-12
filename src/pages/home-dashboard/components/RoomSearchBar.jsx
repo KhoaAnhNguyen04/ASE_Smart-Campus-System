@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../../../components/AppIcon";
 import Input from "../../../components/ui/Input";
+// import { supabase } from "./supabaseClient";
 
 const RoomSearchBar = () => {
   const navigate = useNavigate();
