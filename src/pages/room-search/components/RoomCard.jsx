@@ -34,7 +34,7 @@ const RoomCard = ({ room }) => {
   const statusConfig = getStatusConfig(room?.status);
 
   const handleViewDetails = () => {
-    navigate("/room-details", { state: { roomId: room?.id } });
+    navigate(`/room-details/${room?.id}`);
   };
 
   const handleBookNow = () => {

@@ -70,7 +70,7 @@ const Routes = () => {
               }
             />
             <Route
-              path="/room-details"
+              path="/room-details/:id"
               element={
                 <ProtectedRoute>
                   <RoomDetails />
