@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import supabase from "../../utils/supabase";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,41 +16,13 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Mock users for demo (in production, call API)
-  const mockUsers = {
-    student: {
-      username: "student",
-      password: "student123",
-      role: "student",
-      email: "student@university.edu",
-    },
-    teacher: {
-      username: "lecturer",
-      password: "lecturer123",
-      role: "lecturer",
-      email: "lecturer@university.edu",
-    },
-    admin: {
-      username: "admin",
-      password: "admin123",
-      role: "admin",
-      email: "admin@university.edu",
-    },
-    security: {
-      username: "security",
-      password: "security123",
-      role: "security",
-      email: "security@university.edu",
-    },
-  };
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-    setError(""); // Clear error when user types
+    setError("");
   };
 
   const handleSubmit = async (e) => {
@@ -57,37 +30,60 @@ const Login = () => {
     setLoading(true);
     setError("");
 
-    // Validation
     if (!formData.username || !formData.password) {
       setError("Please enter all required information");
       setLoading(false);
       return;
     }
 
-    // Simulate API call
-    setTimeout(() => {
-      // Check login information
-      const userKey = Object.keys(mockUsers).find(
-        (key) =>
-          mockUsers[key].username === formData.username &&
-          mockUsers[key].password === formData.password
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        {
+          email: formData.username,
+          password: formData.password,
+        }
       );
 
-      if (userKey) {
-        const userData = mockUsers[userKey];
-        login(userData);
-        navigate("/home-dashboard");
-      } else {
-        setError("Tên đăng nhập hoặc mật khẩu không đúng");
+      if (authError) {
+        console.error("Auth error:", authError);
+        setError("Incorrect username or password");
+        setLoading(false);
+        return;
       }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Profile error:", profileError);
+      }
+
+      const userData = {
+        username: profile?.full_name || data.user.email.split("@")[0],
+        role: profile?.role || data.user.user_metadata?.role || "student",
+        email: data.user.email,
+        id: data.user.id,
+        full_name: profile?.full_name,
+        accessToken: data.session?.access_token,
+        refreshToken: data.session?.refresh_token,
+      };
+
+      login(userData);
+      navigate("/home-dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("An error occurred. Please try again.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo and title */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -207,16 +203,16 @@ const Login = () => {
             </p>
             <div className="space-y-1 text-xs text-gray-600">
               <p>
-                <strong>Student:</strong> student / student123
+                <strong>Student:</strong> student@university.edu / student123
               </p>
               <p>
-                <strong>Lecturer:</strong> lecturer / lecturer123
+                <strong>Lecturer:</strong> lecturer@university.edu / lecturer123
               </p>
               <p>
-                <strong>Admin:</strong> admin / admin123
+                <strong>Admin:</strong> admin@university.edu / admin123
               </p>
               <p>
-                <strong>Security:</strong> security / security123
+                <strong>Security:</strong> security@university.edu / security123
               </p>
             </div>
           </div>
