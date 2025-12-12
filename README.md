@@ -1,37 +1,44 @@
 # ASE_Smart-Campus-System
 
 ## Backend (Express + Supabase)
-1) Tạo file `.env` ở thư mục gốc với các biến:
+
+### Môi trường
+Tạo `.env` ở thư mục gốc:
 ```
 SUPABASE_URL=<project-url>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # chỉ dùng ở backend
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # chỉ dùng backend
 PORT=4000
 ```
-Frontend dùng key công khai:
+Frontend dùng:
 ```
 VITE_SUPABASE_URL=<project-url>
 VITE_SUPABASE_ANON_KEY=<anon-or-publishable-key>
 ```
 
-2) Chuẩn bị database Supabase
-- Mở SQL Editor và chạy `seed.sql` để tạo bảng + dữ liệu mẫu.
-- Bảng chính: `rooms`, `room_equipment`, `room_images`, `bookings`, `room_activity_logs`.
-
-3) Chạy backend
+### Khởi chạy
 ```
 npm install
 npm run api
 ```
-API mặc định tại `http://localhost:4000`.
+API mặc định: `http://localhost:4000`
 
-Các endpoint chính:
-- `GET /health` kiểm tra kết nối DB.
-- `GET /buildings` lấy danh sách tòa nhà và tầng.
-- `GET /rooms` lọc + phân trang (search, building, capacity, equipment, availability window).
-- `POST /rooms` tạo phòng; `PATCH /rooms/:id` cập nhật; `DELETE /rooms/:id` xoá (cascade).
-- `GET /rooms/:id` chi tiết phòng kèm bookings & logs.
-- `GET /bookings` danh sách (lọc room_id/user_email/status/upcoming + phân trang).
-- `POST /bookings` tạo booking (chặn trùng giờ); `PATCH /bookings/:id` cập nhật (chặn trùng); `DELETE /bookings/:id` xoá.
-- `POST /availability-check` kiểm tra sẵn sàng cho 1 phòng/time window.
-- `POST /rooms/:id/control` cập nhật trạng thái cửa/thiết bị/occupancy và ghi log.
-- `GET|POST /activity-logs` đọc/ghi log thao tác (có phân trang).
+### Seed database
+- Mở Supabase Dashboard → SQL Editor → dán toàn bộ `seed.sql` → Run.
+- Seed tạo bảng + dữ liệu mẫu + bật RLS + policy.
+
+### Auth
+- Các endpoint cần Bearer token (Supabase Auth access_token): `GET/POST/ PATCH/DELETE /bookings`, `POST /availability-check`, `GET/POST /activity-logs`, `POST /rooms/:id/control`.
+- Header: `Authorization: Bearer <access_token>`.
+- Backend dùng service role key; RLS: bookings chỉ authenticated/service_role, activity_logs chỉ service_role; rooms/equipment/images cho đọc công khai.
+
+### Endpoint chính
+- `GET /health` — kiểm tra DB.
+- `GET /buildings` — danh sách tòa nhà + tầng.
+- `GET /rooms` — lọc + phân trang (search, building, capacity, equipment, availability window).
+- `POST /rooms`, `PATCH /rooms/:id`, `DELETE /rooms/:id`.
+- `GET /rooms/:id` — chi tiết phòng + bookings + activity logs.
+- `GET /bookings` — lọc room_id/user_email/status/upcoming + phân trang (cần Bearer).
+- `POST /bookings` — tạo booking (chặn trùng); `PATCH /bookings/:id`; `DELETE /bookings/:id` (cần Bearer). Nếu không gửi `user_email`, server dùng email từ token.
+- `POST /availability-check` — kiểm tra sẵn sàng phòng/time window (cần Bearer).
+- `POST /rooms/:id/control` — cập nhật door/device/occupancy/status và ghi log (cần Bearer).
+- `GET|POST /activity-logs` — đọc/ghi log thao tác (cần Bearer, có phân trang).

@@ -49,6 +49,27 @@ const parsePagination = (req) => {
   return { page, limit, offset };
 };
 
+// Simple auth guard using Supabase JWT (access token from frontend)
+const requireAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length)
+      : null;
+    if (!token) {
+      return res.status(401).json({ error: "Missing Bearer token" });
+    }
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    req.user = data.user;
+    return next();
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 const fetchConflictingBookings = async (roomIds, startIso, endIso) => {
   return supabase
     .from("bookings")
@@ -360,7 +381,7 @@ app.delete("/rooms/:id", async (req, res) => {
 });
 
 // List bookings with optional filters
-app.get("/bookings", async (req, res) => {
+app.get("/bookings", requireAuth, async (req, res) => {
   const { room_id, user_email, status, upcoming } = req.query;
   const { limit, offset, page } = parsePagination(req);
   let query = supabase
@@ -380,7 +401,7 @@ app.get("/bookings", async (req, res) => {
 });
 
 // Check availability for a specific room/time window
-app.post("/availability-check", async (req, res) => {
+app.post("/availability-check", requireAuth, async (req, res) => {
   const { room_id, start_time, end_time } = req.body || {};
   const startIso = parseDateToIso(start_time);
   const endIso = parseDateToIso(end_time);
@@ -405,7 +426,7 @@ app.post("/availability-check", async (req, res) => {
 });
 
 // Create booking with overlap protection
-app.post("/bookings", async (req, res) => {
+app.post("/bookings", requireAuth, async (req, res) => {
   const {
     room_id,
     user_email,
@@ -437,12 +458,14 @@ app.post("/bookings", async (req, res) => {
       .json({ error: "Time slot overlaps existing booking", conflicts: conflictRes.data });
   }
 
+  const bookingUserEmail = user_email || req.user?.email;
+
   const { data, error } = await supabase
     .from("bookings")
     .insert([
       {
         room_id,
-        user_email,
+        user_email: bookingUserEmail,
         start_time: startIso,
         end_time: endIso,
         status,
@@ -457,7 +480,7 @@ app.post("/bookings", async (req, res) => {
 });
 
 // Update booking with overlap protection
-app.patch("/bookings/:id", async (req, res) => {
+app.patch("/bookings/:id", requireAuth, async (req, res) => {
   const bookingId = req.params.id;
   const {
     room_id,
@@ -533,7 +556,7 @@ app.patch("/bookings/:id", async (req, res) => {
 });
 
 // Delete booking
-app.delete("/bookings/:id", async (req, res) => {
+app.delete("/bookings/:id", requireAuth, async (req, res) => {
   const bookingId = req.params.id;
   const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
   if (error) return handleError(res, error);
@@ -541,7 +564,7 @@ app.delete("/bookings/:id", async (req, res) => {
 });
 
 // Activity logs (list + create) and room control updates
-app.get("/activity-logs", async (req, res) => {
+app.get("/activity-logs", requireAuth, async (req, res) => {
   const { room_id, limit = 50 } = req.query;
   const { offset, page } = parsePagination(req);
   let query = supabase
@@ -557,7 +580,7 @@ app.get("/activity-logs", async (req, res) => {
   res.json({ total: count ?? data?.length ?? 0, page, limit: parseNumber(limit) || 50, logs: data ?? [] });
 });
 
-app.post("/activity-logs", async (req, res) => {
+app.post("/activity-logs", requireAuth, async (req, res) => {
   const { room_id, action, by_user, details, success = true } = req.body || {};
   if (!room_id || !action || !by_user) {
     return res
@@ -574,7 +597,7 @@ app.post("/activity-logs", async (req, res) => {
 });
 
 // Update room operational state (door/device/occupancy/status)
-app.post("/rooms/:id/control", async (req, res) => {
+app.post("/rooms/:id/control", requireAuth, async (req, res) => {
   const roomId = req.params.id;
   const { door_status, device_status, occupancy_count, status, action, by_user } =
     req.body || {};
