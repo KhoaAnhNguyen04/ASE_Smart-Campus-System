@@ -11,6 +11,12 @@ import BookingForm from "./components/BookingForm";
 import AvailabilityChecker from "./components/AvailabilityChecker";
 import BookingConfirmation from "./components/BookingConfirmation";
 import BookingSuccess from "./components/BookingSuccess";
+import { createClient } from "@supabase/supabase-js";
+
+export const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
 
 const NewBookingContent = () => {
   const navigate = useNavigate();
@@ -22,62 +28,67 @@ const NewBookingContent = () => {
   const [bookingData, setBookingData] = useState(null);
   const [bookingReference, setBookingReference] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [conflicts, setConflicts] = useState([]);
+  const [alternativeSlots, setAlternativeSlots] = useState([]);
+  const [alternativeRooms, setAlternativeRooms] = useState([]);
 
   const prefilledRoom = location?.state?.room || null;
   const prefilledDate = location?.state?.date || "";
-
-  const mockAlternativeSlots = [
-    { startTime: "09:00", endTime: "11:00", duration: "2h 0m" },
-    { startTime: "11:30", endTime: "13:30", duration: "2h 0m" },
-    { startTime: "14:00", endTime: "16:00", duration: "2h 0m" },
-    { startTime: "16:30", endTime: "18:30", duration: "2h 0m" },
-  ];
-
-  const mockAlternativeRooms = [
-    {
-      id: "R102",
-      name: "Room 102",
-      building: "Engineering Building",
-      floor: 1,
-      capacity: 25,
-      equipment: ["Projector", "Whiteboard", "WiFi"],
-    },
-    {
-      id: "R201",
-      name: "Room 201",
-      building: "Science Building",
-      floor: 2,
-      capacity: 40,
-      equipment: ["Smart Board", "Video Conference", "WiFi"],
-    },
-    {
-      id: "R302",
-      name: "Room 302",
-      building: "Arts Building",
-      floor: 3,
-      capacity: 15,
-      equipment: ["Projector", "WiFi"],
-    },
-  ];
 
   useEffect(() => {
     document.title = "New Booking - UniRoom Manager";
   }, []);
 
-  const handleAvailabilityCheck = (formData) => {
+  const formatConflict = (conflict) => {
+    const start = new Date(conflict.start_time).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const end = new Date(conflict.end_time).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `This room is already booked from ${start} to ${end}.`;
+  };
+
+  const handleAvailabilityCheck = async (formData) => {
     setBookingData(formData);
     setCurrentStep("checking");
     setAvailabilityStatus("checking");
 
-    setTimeout(() => {
-      const isAvailable = Math.random() > 0.4;
-
-      if (isAvailable) {
+    try {
+      const start_time = `${formData.date}T${formData.startTime}:00`;
+      const end_time = `${formData.date}T${formData.endTime}:00`;
+  
+      const res = await fetch("/availability-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room_id: formData.roomId,
+          start_time,
+          end_time,
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (data.isAvailable) {
         setAvailabilityStatus("available");
+        setConflicts([]);
+        setAlternativeSlots([]);
+        setAlternativeRooms([]);
       } else {
         setAvailabilityStatus("conflict");
+        setConflicts(data.conflicts || []);
+        setAlternativeSlots(data.alternativeSlots || []);
+        setAlternativeRooms(data.alternativeRooms || []);
       }
-    }, 2000);
+      
+      
+    } catch (err) {
+      console.error(err);
+      setAvailabilityStatus("conflict");
+    }
   };
 
   const handleProceedToConfirmation = () => {
@@ -103,15 +114,49 @@ const NewBookingContent = () => {
     }
   };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     setIsProcessing(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    
+    if (!user) {
+      alert("Please login to book a room");
+      return;
+    }
+    try {
+      const start_time = `${bookingData.date}T${bookingData.startTime}:00`;
+      const end_time = `${bookingData.date}T${bookingData.endTime}:00`;
+  
+      const res = await fetch("/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room_id: bookingData.roomId,
+          user_email: user.email,
+          start_time,
+          end_time,
+          purpose: bookingData.description,
+        }),
+      });
+  
+      const data = await res.json();
+      
+      if (res.status === 409) {
+        setAvailabilityStatus("conflict");
+        setCurrentStep("checking");
+        return;
+      }
 
-    setTimeout(() => {
-      const reference = `BK${Date.now()?.toString()?.slice(-8)}`;
-      setBookingReference(reference);
-      setIsProcessing(false);
+      if (!res.ok) throw new Error(data.error);
+  
+      setBookingReference(`BK-${data.id.slice(0, 8)}`);
       setCurrentStep("success");
-    }, 2000);
+    } catch (err) {
+      alert(err.message || "Booking failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCancelConfirmation = () => {
@@ -218,13 +263,11 @@ const NewBookingContent = () => {
             {currentStep === "checking" && (
               <AvailabilityChecker
                 status={availabilityStatus}
-                conflictDetails="This room is already booked from 10:00 AM to 12:00 PM on your selected date."
-                alternativeSlots={
-                  availabilityStatus === "conflict" ? mockAlternativeSlots : []
+                conflictDetails={
+                  conflicts.length ? formatConflict(conflicts[0]) : ""
                 }
-                alternativeRooms={
-                  availabilityStatus === "conflict" ? mockAlternativeRooms : []
-                }
+                alternativeSlots={alternativeSlots}
+                alternativeRooms={alternativeRooms}
                 onSelectAlternative={handleSelectAlternative}
                 onProceedAnyway={handleProceedToConfirmation}
               />
