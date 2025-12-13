@@ -1,7 +1,6 @@
-import React from 'react';
-import Icon from "../../../components/AppIcon";
-import BookingEditForm from "./BookingEditForm";
-import BookingDetails from "./BookingDetails";
+import React from "react";
+import BookingView from "./ViewMode/BookingView";
+import BookingEditForm from "./EditMode/BookingEditForm";
 
 const BookingCard = ({
   booking,
@@ -9,13 +8,12 @@ const BookingCard = ({
   editForm,
   errors,
   roomOptions,
-  buildingOptions,
   onEdit,
   onSave,
   onCancel,
   onDelete,
   onCancelEdit,
-  onFormChange
+  onFormChange,
 }) => {
   return (
     <div className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow">
@@ -25,13 +23,12 @@ const BookingCard = ({
           editForm={editForm}
           errors={errors}
           roomOptions={roomOptions}
-          buildingOptions={buildingOptions}
           onSave={() => onSave(booking.id)}
-          onCancel={onCancelEdit}
+          onCancelEdit={onCancelEdit}
           onFormChange={onFormChange}
         />
       ) : (
-        <BookingDetails
+        <BookingView
           booking={booking}
           onEdit={() => onEdit(booking)}
           onCancel={() => onCancel(booking.id)}
@@ -43,3 +40,4 @@ const BookingCard = ({
 };
 
 export default BookingCard;
+

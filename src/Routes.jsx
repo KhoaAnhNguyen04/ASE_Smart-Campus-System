@@ -70,6 +70,14 @@ const Routes = () => {
               }
             />
             <Route
+              path="/my-bookings"
+              element={
+                <ProtectedRoute>
+                  <MyBookings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/room-details/:id"
               element={
                 <ProtectedRoute>
