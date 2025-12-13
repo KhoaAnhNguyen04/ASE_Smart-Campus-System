@@ -73,6 +73,53 @@ const fetchConflictingBookings = async (roomIds, startIso, endIso) => {
     .lt("start_time", endIso)
     .gt("end_time", startIso);
 };
+function generateAltSlots(startIso, endIso) {
+  const durationMs =
+    new Date(endIso).getTime() - new Date(startIso).getTime();
+
+  const baseStart = new Date(startIso);
+  const slots = [];
+
+  for (let i = 1; i <= 3; i++) {
+    const newStart = new Date(baseStart.getTime() + i * 60 * 60 * 1000);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    slots.push({
+      startTime: newStart.toISOString(),
+      endTime: newEnd.toISOString(),
+      duration: `${durationMs / 60000} mins`,
+    });
+  }
+
+  return slots;
+}
+async function suggestRooms(startIso, endIso, currentRoomId) {
+  // 1. Get all rooms except the current one
+  const { data: rooms, error } = await supabase
+    .from("rooms")
+    .select("*")
+    .neq("id", currentRoomId);
+
+  if (error || !rooms) return [];
+
+  // 2. Check conflicts for those rooms
+  const roomIds = rooms.map((r) => r.id);
+
+  const conflictRes = await fetchConflictingBookings(
+    roomIds,
+    startIso,
+    endIso
+  );
+
+  if (conflictRes.error) return [];
+
+  const conflictedRoomIds = new Set(
+    (conflictRes.data || []).map((b) => b.room_id)
+  );
+
+  // 3. Keep only free rooms
+  return rooms.filter((room) => !conflictedRoomIds.has(room.id));
+}
 
 // Healthcheck + quick DB connectivity test
 app.get("/health", async (_req, res) => {
@@ -505,7 +552,16 @@ app.post("/availability-check", async (req, res) => {
   res.json({
     isAvailable: conflicts.length === 0,
     conflicts,
+    alternativeSlots:
+      conflicts.length > 0
+        ? generateAltSlots(startIso, endIso)
+        : [],
+    alternativeRooms:
+      conflicts.length > 0
+        ? await suggestRooms(startIso, endIso, room_id)
+        : [],
   });
+  
 });
 
 // Create booking with overlap protection
