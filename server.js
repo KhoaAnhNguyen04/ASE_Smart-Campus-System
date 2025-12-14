@@ -22,7 +22,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 });
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 const handleError = (res, error) => {
@@ -74,8 +80,7 @@ const fetchConflictingBookings = async (roomIds, startIso, endIso) => {
     .gt("end_time", startIso);
 };
 function generateAltSlots(startIso, endIso) {
-  const durationMs =
-    new Date(endIso).getTime() - new Date(startIso).getTime();
+  const durationMs = new Date(endIso).getTime() - new Date(startIso).getTime();
 
   const baseStart = new Date(startIso);
   const slots = [];
@@ -105,11 +110,7 @@ async function suggestRooms(startIso, endIso, currentRoomId) {
   // 2. Check conflicts for those rooms
   const roomIds = rooms.map((r) => r.id);
 
-  const conflictRes = await fetchConflictingBookings(
-    roomIds,
-    startIso,
-    endIso
-  );
+  const conflictRes = await fetchConflictingBookings(roomIds, startIso, endIso);
 
   if (conflictRes.error) return [];
 
@@ -175,7 +176,12 @@ const handleGetMe = async (req, res) => {
   const { data, error: profileError } = await supabase
     .from("users")
     .upsert(
-      { id: user.id, email: user.email, full_name: user.user_metadata?.full_name, role: user.user_metadata?.role || "student" },
+      {
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name,
+        role: user.user_metadata?.role || "student",
+      },
       { onConflict: "id" }
     )
     .select()
@@ -263,8 +269,9 @@ app.get("/rooms", async (req, res) => {
   let query = supabase
     .from("rooms")
     .select(
-      "id, name, building, floor, room_number, capacity, status, image_url, door_status, device_status, occupancy_count, room_equipment(name,icon), room_images(url,alt)"
-    , { count: "exact" })
+      "id, name, building, floor, room_number, capacity, status, image_url, door_status, device_status, occupancy_count, room_equipment(name,icon), room_images(url,alt)",
+      { count: "exact" }
+    )
     .order("name", { ascending: true })
     .range(offset, offset + limit - 1);
 
@@ -336,9 +343,7 @@ app.get("/rooms", async (req, res) => {
     const nextAvailableAt =
       conflicts.length > 0
         ? new Date(
-            Math.max(
-              ...conflicts.map((b) => new Date(b.end_time).getTime())
-            )
+            Math.max(...conflicts.map((b) => new Date(b.end_time).getTime()))
           ).toISOString()
         : null;
     return {
@@ -417,8 +422,15 @@ app.post("/rooms", async (req, res) => {
     occupancy_count = 0,
   } = req.body || {};
 
-  if (!name || !building || !Number.isFinite(parseNumber(floor)) || !Number.isFinite(parseNumber(capacity))) {
-    return res.status(400).json({ error: "name, building, floor, capacity are required" });
+  if (
+    !name ||
+    !building ||
+    !Number.isFinite(parseNumber(floor)) ||
+    !Number.isFinite(parseNumber(capacity))
+  ) {
+    return res
+      .status(400)
+      .json({ error: "name, building, floor, capacity are required" });
   }
 
   const { data, error } = await supabase
@@ -477,7 +489,15 @@ app.patch("/rooms/:id", async (req, res) => {
   const updates = {};
   for (const key of allowedFields) {
     if (req.body?.[key] !== undefined) {
-      if (["floor", "capacity", "latitude", "longitude", "occupancy_count"].includes(key)) {
+      if (
+        [
+          "floor",
+          "capacity",
+          "latitude",
+          "longitude",
+          "occupancy_count",
+        ].includes(key)
+      ) {
         const parsed = parseNumber(req.body[key]);
         if (!Number.isFinite(parsed)) continue;
         updates[key] = parsed;
@@ -516,18 +536,26 @@ app.get("/bookings", async (req, res) => {
   const { limit, offset, page } = parsePagination(req);
   let query = supabase
     .from("bookings")
-    .select("id, room_id, user_email, status, start_time, end_time, purpose", { count: "exact" })
+    .select("id, room_id, user_email, status, start_time, end_time, purpose", {
+      count: "exact",
+    })
     .order("start_time", { ascending: true })
     .range(offset, offset + limit - 1);
 
   if (room_id) query = query.eq("room_id", room_id);
   if (user_email) query = query.ilike("user_email", user_email);
   if (status) query = query.eq("status", status);
-  if (upcoming === "true") query = query.gte("end_time", new Date().toISOString());
+  if (upcoming === "true")
+    query = query.gte("end_time", new Date().toISOString());
 
   const { data, error, count } = await query;
   if (error) return handleError(res, error);
-  res.json({ total: count ?? data?.length ?? 0, page, limit, bookings: data ?? [] });
+  res.json({
+    total: count ?? data?.length ?? 0,
+    page,
+    limit,
+    bookings: data ?? [],
+  });
 });
 
 // Check availability for a specific room/time window
@@ -538,14 +566,21 @@ app.post("/availability-check", async (req, res) => {
 
   if (!room_id || !startIso || !endIso) {
     return res.status(400).json({
-      error: "room_id, start_time, end_time are required and must be valid dates",
+      error:
+        "room_id, start_time, end_time are required and must be valid dates",
     });
   }
   if (new Date(startIso).getTime() >= new Date(endIso).getTime()) {
-    return res.status(400).json({ error: "start_time must be before end_time" });
+    return res
+      .status(400)
+      .json({ error: "start_time must be before end_time" });
   }
 
-  const conflictRes = await fetchConflictingBookings([room_id], startIso, endIso);
+  const conflictRes = await fetchConflictingBookings(
+    [room_id],
+    startIso,
+    endIso
+  );
   if (conflictRes.error) return handleError(res, conflictRes.error);
   const conflicts = conflictRes.data || [];
 
@@ -553,15 +588,10 @@ app.post("/availability-check", async (req, res) => {
     isAvailable: conflicts.length === 0,
     conflicts,
     alternativeSlots:
-      conflicts.length > 0
-        ? generateAltSlots(startIso, endIso)
-        : [],
+      conflicts.length > 0 ? generateAltSlots(startIso, endIso) : [],
     alternativeRooms:
-      conflicts.length > 0
-        ? await suggestRooms(startIso, endIso, room_id)
-        : [],
+      conflicts.length > 0 ? await suggestRooms(startIso, endIso, room_id) : [],
   });
-  
 });
 
 // Create booking with overlap protection
@@ -586,15 +616,22 @@ app.post("/bookings", async (req, res) => {
   }
 
   if (new Date(startIso).getTime() >= new Date(endIso).getTime()) {
-    return res.status(400).json({ error: "start_time must be before end_time" });
+    return res
+      .status(400)
+      .json({ error: "start_time must be before end_time" });
   }
 
-  const conflictRes = await fetchConflictingBookings([room_id], startIso, endIso);
+  const conflictRes = await fetchConflictingBookings(
+    [room_id],
+    startIso,
+    endIso
+  );
   if (conflictRes.error) return handleError(res, conflictRes.error);
   if (conflictRes.data && conflictRes.data.length > 0) {
-    return res
-      .status(409)
-      .json({ error: "Time slot overlaps existing booking", conflicts: conflictRes.data });
+    return res.status(409).json({
+      error: "Time slot overlaps existing booking",
+      conflicts: conflictRes.data,
+    });
   }
 
   const { data, error } = await supabase
@@ -619,13 +656,7 @@ app.post("/bookings", async (req, res) => {
 // Update booking with overlap protection
 app.patch("/bookings/:id", async (req, res) => {
   const bookingId = req.params.id;
-  const {
-    room_id,
-    start_time,
-    end_time,
-    status,
-    purpose,
-  } = req.body || {};
+  const { room_id, start_time, end_time, status, purpose } = req.body || {};
 
   const updates = {};
   if (room_id) updates.room_id = room_id;
@@ -639,10 +670,14 @@ app.patch("/bookings/:id", async (req, res) => {
 
   if (start_time !== undefined || end_time !== undefined) {
     if (!startIso || !endIso) {
-      return res.status(400).json({ error: "start_time and end_time must be valid dates" });
+      return res
+        .status(400)
+        .json({ error: "start_time and end_time must be valid dates" });
     }
     if (new Date(startIso).getTime() >= new Date(endIso).getTime()) {
-      return res.status(400).json({ error: "start_time must be before end_time" });
+      return res
+        .status(400)
+        .json({ error: "start_time must be before end_time" });
     }
   }
 
@@ -669,7 +704,9 @@ app.patch("/bookings/:id", async (req, res) => {
       checkEnd
     );
     if (conflictRes.error) return handleError(res, conflictRes.error);
-    const conflicts = (conflictRes.data || []).filter((b) => b.id !== bookingId);
+    const conflicts = (conflictRes.data || []).filter(
+      (b) => b.id !== bookingId
+    );
     if (conflicts.length > 0) {
       return res
         .status(409)
@@ -695,7 +732,10 @@ app.patch("/bookings/:id", async (req, res) => {
 // Delete booking
 app.delete("/bookings/:id", async (req, res) => {
   const bookingId = req.params.id;
-  const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("id", bookingId);
   if (error) return handleError(res, error);
   res.status(204).send();
 });
@@ -706,7 +746,9 @@ app.get("/activity-logs", async (req, res) => {
   const { offset, page } = parsePagination(req);
   let query = supabase
     .from("room_activity_logs")
-    .select("id, room_id, action, by_user, details, success, created_at", { count: "exact" })
+    .select("id, room_id, action, by_user, details, success, created_at", {
+      count: "exact",
+    })
     .order("created_at", { ascending: false })
     .range(offset, offset + (parseNumber(limit) || 50) - 1);
 
@@ -714,7 +756,12 @@ app.get("/activity-logs", async (req, res) => {
 
   const { data, error, count } = await query;
   if (error) return handleError(res, error);
-  res.json({ total: count ?? data?.length ?? 0, page, limit: parseNumber(limit) || 50, logs: data ?? [] });
+  res.json({
+    total: count ?? data?.length ?? 0,
+    page,
+    limit: parseNumber(limit) || 50,
+    logs: data ?? [],
+  });
 });
 
 app.post("/activity-logs", async (req, res) => {
@@ -736,19 +783,27 @@ app.post("/activity-logs", async (req, res) => {
 // Update room operational state (door/device/occupancy/status)
 app.post("/rooms/:id/control", async (req, res) => {
   const roomId = req.params.id;
-  const { door_status, device_status, occupancy_count, status, action, by_user } =
-    req.body || {};
+  const {
+    door_status,
+    device_status,
+    occupancy_count,
+    status,
+    action,
+    by_user,
+  } = req.body || {};
 
   const updates = {};
   if (door_status) updates.door_status = door_status;
   if (device_status) updates.device_status = device_status;
-  if (Number.isFinite(occupancy_count)) updates.occupancy_count = occupancy_count;
+  if (Number.isFinite(occupancy_count))
+    updates.occupancy_count = occupancy_count;
   if (status) updates.status = status;
 
   if (Object.keys(updates).length === 0) {
-    return res
-      .status(400)
-      .json({ error: "At least one of door_status, device_status, occupancy_count, status is required" });
+    return res.status(400).json({
+      error:
+        "At least one of door_status, device_status, occupancy_count, status is required",
+    });
   }
 
   const { data: room, error } = await supabase
@@ -761,17 +816,26 @@ app.post("/rooms/:id/control", async (req, res) => {
 
   if (action && by_user) {
     await supabase.from("room_activity_logs").insert([
-      { room_id: roomId, action, by_user, details: { updates }, success: true },
+      {
+        room_id: roomId,
+        action,
+        by_user,
+        details: { updates },
+        success: true,
+      },
     ]);
   }
 
   res.json(room);
+});
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Not found",
+    path: req.originalUrl,
+  });
 });
 
 app.listen(PORT, () =>
   // eslint-disable-next-line no-console
   console.log(`API running on http://localhost:${PORT}`)
 );
-
-
-

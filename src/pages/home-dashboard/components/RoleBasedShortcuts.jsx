@@ -23,14 +23,7 @@ const RoleBasedShortcuts = ({ userRole = "student" }) => {
         bgColor: "bg-accent/10",
         path: "/room-search",
       },
-      {
-        title: "My Class Schedule",
-        description: "View your upcoming classes and room assignments",
-        icon: "Calendar",
-        iconColor: "var(--color-success)",
-        bgColor: "bg-success/10",
-        path: "/my-bookings",
-      },
+
       {
         title: "Campus Map",
         description:

@@ -1,0 +1,40 @@
+// src/mocks/roomDetails.mock.ts
+export const roomDetailsMock = {
+  room: {
+    id: "LH-301",
+    name: "Lecture Hall 301",
+    building: "Engineering Block A",
+    floor: 3,
+    room_number: "301",
+    status: "available",
+    capacity: 120,
+    area: "180 sq m",
+    climate: "Air Conditioned",
+    lighting: "Natural + LED",
+    wing: "North Wing",
+    nearest_entrance: "Main Entrance A",
+    latitude: 40.7128,
+    longitude: -74.006,
+    room_equipment: [
+      { name: "Projector", icon: "Projector" },
+      { name: "Smart Board", icon: "Board" },
+    ],
+    room_images: [
+      {
+        url: "https://images.unsplash.com/photo-1582939224887-986825635643",
+        alt: "Lecture hall",
+      },
+    ],
+  },
+  bookings: [
+    {
+      id: "1",
+      start_time: "2025-12-05T08:00:00",
+      end_time: "2025-12-05T09:30:00",
+      status: "occupied",
+      user_email: "sarah@uni.edu",
+      purpose: "Advanced Mathematics Lecture",
+    },
+  ],
+  activity_logs: [],
+};

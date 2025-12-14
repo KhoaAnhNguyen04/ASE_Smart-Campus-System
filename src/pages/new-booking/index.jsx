@@ -11,12 +11,7 @@ import BookingForm from "./components/BookingForm";
 import AvailabilityChecker from "./components/AvailabilityChecker";
 import BookingConfirmation from "./components/BookingConfirmation";
 import BookingSuccess from "./components/BookingSuccess";
-import { createClient } from "@supabase/supabase-js";
-
-export const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
+import { supabase } from "utils/supabase";
 
 const NewBookingContent = () => {
   const navigate = useNavigate();
@@ -59,7 +54,7 @@ const NewBookingContent = () => {
     try {
       const start_time = `${formData.date}T${formData.startTime}:00`;
       const end_time = `${formData.date}T${formData.endTime}:00`;
-  
+
       const res = await fetch("/availability-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,9 +64,9 @@ const NewBookingContent = () => {
           end_time,
         }),
       });
-  
+
       const data = await res.json();
-  
+
       if (data.isAvailable) {
         setAvailabilityStatus("available");
         setConflicts([]);
@@ -83,8 +78,6 @@ const NewBookingContent = () => {
         setAlternativeSlots(data.alternativeSlots || []);
         setAlternativeRooms(data.alternativeRooms || []);
       }
-      
-      
     } catch (err) {
       console.error(err);
       setAvailabilityStatus("conflict");
@@ -119,7 +112,7 @@ const NewBookingContent = () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    
+
     if (!user) {
       alert("Please login to book a room");
       return;
@@ -127,7 +120,7 @@ const NewBookingContent = () => {
     try {
       const start_time = `${bookingData.date}T${bookingData.startTime}:00`;
       const end_time = `${bookingData.date}T${bookingData.endTime}:00`;
-  
+
       const res = await fetch("/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -139,9 +132,9 @@ const NewBookingContent = () => {
           purpose: bookingData.description,
         }),
       });
-  
+
       const data = await res.json();
-      
+
       if (res.status === 409) {
         setAvailabilityStatus("conflict");
         setCurrentStep("checking");
@@ -149,7 +142,7 @@ const NewBookingContent = () => {
       }
 
       if (!res.ok) throw new Error(data.error);
-  
+
       setBookingReference(`BK-${data.id.slice(0, 8)}`);
       setCurrentStep("success");
     } catch (err) {

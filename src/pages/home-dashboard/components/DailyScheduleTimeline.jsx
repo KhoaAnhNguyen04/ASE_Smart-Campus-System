@@ -115,7 +115,7 @@ const DailyScheduleTimeline = ({ userRole = "student" }) => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-1">
-            Daily Schedule
+            Daily Booking
           </h2>
           <p className="text-sm text-muted-foreground">
             {formatDate(selectedDate)}
@@ -202,20 +202,6 @@ const DailyScheduleTimeline = ({ userRole = "student" }) => {
                       <span>{item?.building}</span>
                     </div>
                   </div>
-
-                  {item?.lecturer && (
-                    <div className="flex items-center gap-1.5 mt-2 text-sm text-muted-foreground">
-                      <Icon name="User" size={14} />
-                      <span>{item?.lecturer}</span>
-                    </div>
-                  )}
-
-                  {item?.students && (
-                    <div className="flex items-center gap-1.5 mt-2 text-sm text-muted-foreground">
-                      <Icon name="Users" size={14} />
-                      <span>{item?.students} students</span>
-                    </div>
-                  )}
                 </button>
               </div>
             );

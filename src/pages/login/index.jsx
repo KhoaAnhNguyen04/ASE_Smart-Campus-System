@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import supabase from "../../utils/supabase";
+
+import { supabase } from "utils/supabase";
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -37,38 +39,54 @@ const Login = () => {
     }
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword(
-        {
-          email: formData.username,
-          password: formData.password,
-        }
-      );
+      /* 1️⃣ LOGIN */
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.username,
+        password: formData.password,
+      });
 
       if (authError) {
         console.error("Auth error:", authError);
         setError("Incorrect username or password");
-        setLoading(false);
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", data.user.id)
-        .single();
+      /* 2️⃣ LẤY SESSION ĐÚNG CÁCH (QUAN TRỌNG) */
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (profileError) {
-        console.error("Profile error:", profileError);
+      if (sessionError || !session) {
+        console.error("Session error:", sessionError);
+        setError("Failed to create session");
+        return;
       }
 
+      /* 3️⃣ GỌI BACKEND BẰNG TOKEN CHUẨN */
+      const profileRes = await fetch("http://localhost:4000/profiles/me", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!profileRes.ok) {
+        const text = await profileRes.text();
+        console.error("Profile API error:", text);
+        throw new Error("Failed to load user profile");
+      }
+
+      const profile = await profileRes.json();
+
+      /* 4️⃣ TẠO USER DATA (GIỮ NGUYÊN FORMAT CỦA BẠN) */
       const userData = {
-        username: profile?.full_name || data.user.email.split("@")[0],
-        role: profile?.role || data.user.user_metadata?.role || "student",
-        email: data.user.email,
-        id: data.user.id,
+        username: profile?.full_name || session.user.email.split("@")[0],
+        role: profile?.role || "student",
+        email: session.user.email,
+        id: session.user.id,
         full_name: profile?.full_name,
-        accessToken: data.session?.access_token,
-        refreshToken: data.session?.refresh_token,
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
       };
 
       login(userData);
@@ -181,12 +199,12 @@ const Login = () => {
                       r="10"
                       stroke="currentColor"
                       strokeWidth="4"
-                    ></circle>
+                    />
                     <path
                       className="opacity-75"
                       fill="currentColor"
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
+                    />
                   </svg>
                   Logging in...
                 </span>
@@ -195,27 +213,6 @@ const Login = () => {
               )}
             </Button>
           </form>
-
-          {/* Demo accounts info */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3">
-              Demo accounts:
-            </p>
-            <div className="space-y-1 text-xs text-gray-600">
-              <p>
-                <strong>Student:</strong> student@university.edu / student123
-              </p>
-              <p>
-                <strong>Lecturer:</strong> lecturer@university.edu / lecturer123
-              </p>
-              <p>
-                <strong>Admin:</strong> admin@university.edu / admin123
-              </p>
-              <p>
-                <strong>Security:</strong> security@university.edu / security123
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
